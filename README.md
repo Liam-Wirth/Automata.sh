@@ -10,10 +10,11 @@ in the terminal. This was inspired by the very popular terminal screensaver Pipe
     - Allows passing of `-r` to specify a random seed location
     - Allows passing of `-t` to toggle a toroidal boundary (simulates an infinite grid)
 
-## inspired:
+## Demo
+![demogif](assets/demo.gif)
 ### Manual:
 ```bash
-git clone https://github.com/yourusername/life.sh.git
+git clone https://github.com/Liam-Wirth/Automata.sh.git
 cd life.sh
 chmod +x life.sh elementary.sh
 ```
