@@ -12,6 +12,7 @@ in the terminal. This was inspired by the very popular terminal screensaver Pipe
 
 ## Demo
 ![demogif](assets/demo.gif)
+## Installation
 ### Manual:
 ```bash
 git clone https://github.com/Liam-Wirth/Automata.sh.git
