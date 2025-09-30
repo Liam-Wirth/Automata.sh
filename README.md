@@ -12,6 +12,9 @@ in the terminal. This was inspired by the very popular terminal screensaver Pipe
 
 ## Demo
 ![demogif](assets/demo.gif)
+
+# License
+This project is [MIT Licensed](LICENSE.md), all I ask is for credit in some form :)
 ## Installation
 ### Manual:
 ```bash
