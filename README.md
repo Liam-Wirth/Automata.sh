@@ -36,6 +36,17 @@ Press any key to exit.
 ./elementary.sh [OPTIONS] [RULE_NUMBER]
 ```
 
+### mazecetric
+```bash
+./mazecetric.sh
+```
+
+### Brians Brain
+```bash
+./brain.sh
+```
+
+
 #### Options
 
 - `-r` : Use a random starting cell instead of the middle one
@@ -57,3 +68,9 @@ Press any key to exit.
 # Run with random rule, random seed, and toroidal boundaries
 ./elementary.sh -r -t
 ```
+# TODOs/ Roadmap
++ These are all standalone scripts, which I like, but in the future I think it might be better to extract out common functionality
+(they all basically use the same skeleton, which is just pasted from the first one I wrote, life.sh) to cut down on repeated code
++ Add more colors
++ Add optional "picker" ui or somethin
++ Add more "customization" to all of them (mazecetric, and brain don't have parameters that can be passed)

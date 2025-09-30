@@ -4,16 +4,12 @@
 INITIAL_DENSITY=20 # Percentage of initially live cells (approx)
 SLEEP_DURATION=0.02
 
-# --- Terminal Setup & Globals ---
-# Use full terminal size initially
 rows=$(tput lines)
 cols=$(tput cols)
 
 declare -A front # Current generation grid
 declare -A back  # Next generation grid (buffer)
 
-# --- Cell Appearance ---
-# Default to ASCII
 LIVE_CELL="O"
 DEAD_CELL="."
 

@@ -26,14 +26,14 @@ check_unicode_support() {
         if [[ "${charmap^^}" == "UTF-8" ]]; then
             LIVE_CELL="█" # Full Block U+2588
             DEAD_CELL=" " # Space
-            return 0 # Indicate success
+            return 0      # Indicate success
         fi
     fi
     # Fallback check if locale command missing or not UTF-8
     if [[ "${LC_ALL:-${LC_CTYPE:-$LANG}}" == *.UTF-8 ]]; then
-         LIVE_CELL="█"
-         DEAD_CELL=" "
-         return 0 # Indicate success
+        LIVE_CELL="█"
+        DEAD_CELL=" "
+        return 0 # Indicate success
     fi
     return 1 # Indicate ASCII fallback
 }
@@ -43,83 +43,100 @@ if [[ $? -ne 0 ]]; then
     DEAD_CELL="."
 fi
 
-
 init() {
-   printf '\e[?1049h'
-   printf '\e[?25l'
-   clear
+    printf '\e[?1049h'
+    printf '\e[?25l'
+    clear
 }
 
 cleanup() {
-   while read -r -t 0.001 -N 1; do : ; done
-   printf '\e[?25h'
-   printf '\e[?1049l'
-   exit 0
+    while read -r -t 0.001 -N 1; do :; done
+    printf '\e[?25h'
+    printf '\e[?1049l'
+    exit 0
 }
 
 trap cleanup EXIT INT TERM QUIT # Set up cleanup on exit/interrupt
 
-
 init_grid() {
-   local r c num_cells target_cells
-   front=() # Clear the front grid
-   target_cells=$(( rows * cols * INITIAL_DENSITY / 100 ))
-   [[ $target_cells -lt 0 ]] && target_cells=0
+    local r c num_cells target_cells
+    front=() # Clear the front grid
+    target_cells=$((rows * cols * INITIAL_DENSITY / 100))
+    [[ $target_cells -lt 0 ]] && target_cells=0
 
-   for (( num_cells=0; num_cells < target_cells; num_cells++ )); do
-      r=$(( RANDOM % rows ))
-      c=$(( RANDOM % cols ))
-      front["$r,$c"]=1
-   done
+    for ((num_cells = 0; num_cells < target_cells; num_cells++)); do
+        r=$((RANDOM % rows))
+        c=$((RANDOM % cols))
+        front["$r,$c"]=1
+    done
 }
 
 # Calculate the next generation/state of the grid
 update_grid() {
-   local r c nr nc dr dc neighbors is_alive key
-   declare -A cells_to_check
+    local r c nr nc dr dc neighbors is_alive key
+    declare -A cells_to_check
 
-   # 1. Identify cells needing checks
-   for key in "${!front[@]}"; do
-       IFS=',' read -r r c <<< "$key"
-       cells_to_check["$r,$c"]=1
-       for dr in -1 0 1; do for dc in -1 0 1; do
-          nr=$(( (r + dr + rows) % rows ))
-          nc=$(( (c + dc + cols) % cols ))
-          cells_to_check["$nr,$nc"]=1
-       done done
-   done
+    # 1. Identify cells needing checks
+    for key in "${!front[@]}"; do
+        IFS=',' read -r r c <<<"$key"
+        cells_to_check["$r,$c"]=1
+        for dr in -1 0 1; do for dc in -1 0 1; do
+            nr=$(((r + dr + rows) % rows))
+            nc=$(((c + dc + cols) % cols))
+            cells_to_check["$nr,$nc"]=1
+        done; done
+    done
 
-   back=()
+    back=()
 
-   for key in "${!cells_to_check[@]}"; do
-       IFS=',' read -r r c <<< "$key"
+    for key in "${!cells_to_check[@]}"; do
+        IFS=',' read -r r c <<<"$key"
 
-       neighbors=0
-       for dr in -1 0 1; do
-          for dc in -1 0 1; do
-             [[ $dr -eq 0 && $dc -eq 0 ]] && continue # Skip self
-             nr=$(( (r + dr + rows) % rows ))
-             nc=$(( (c + dc + cols) % cols ))
-             [[ -v front["$nr,$nc"] ]] && ((neighbors++))
-          done
-       done
-       is_alive=0
-       [[ -v front["$key"] ]] && is_alive=1
+        neighbors=0
+        for dr in -1 0 1; do
+            for dc in -1 0 1; do
+                [[ $dr -eq 0 && $dc -eq 0 ]] && continue # Skip self
+                nr=$(((r + dr + rows) % rows))
+                nc=$(((c + dc + cols) % cols))
+                [[ -v front["$nr,$nc"] ]] && ((neighbors++))
+            done
+        done
+        is_alive=0
+        [[ -v front["$key"] ]] && is_alive=1
 
-       if (( is_alive )); then
-          # Survive
-          if (( neighbors == 2 || neighbors == 3 )); then
-             back["$key"]=1
-          fi
-       else
-          # Reproduce
-          if (( neighbors == 3 )); then
-             back["$key"]=1
-          fi
-       fi
-   done
+        if ((is_alive)); then
+            # Survive
+            if ((neighbors == 2 || neighbors == 3)); then
+                back["$key"]=1
+            fi
+        else
+            # Reproduce
+            if ((neighbors == 3)); then
+                back["$key"]=1
+            fi
+        fi
+    done
 }
 
+# awk TUAH!
+awk_grid() {
+    back=()
+    while IFS= read -r key; do
+        back["$key"]=1
+    done < <(
+        printf '%s\n' "${!front[@]}" |
+            awk -v R="$rows" -v C="$cols" '
+            BEGIN { FS="," }
+{
+live[$0]=1
+split($0, rc, ","); r=rc[1]; c=rc[2]
+
+}
+
+'
+    )
+
+}
 
 # Draw the changes using ANSI escapes and batched output
 draw_grid() {
@@ -129,7 +146,7 @@ draw_grid() {
     # Cells that died (in front but not in back)
     for key in "${!front[@]}"; do
         if [[ ! -v back["$key"] ]]; then
-            IFS=',' read -r r c <<< "$key"
+            IFS=',' read -r r c <<<"$key"
             draw_buffer+="\e[$((r + 1));$((c + 1))H${DEAD_CELL}"
         fi
     done
@@ -138,8 +155,8 @@ draw_grid() {
     for key in "${!back[@]}"; do
         # Optimization: Only draw if it wasn't already alive (reduces overdraw)
         if [[ ! -v front["$key"] ]]; then
-             IFS=',' read -r r c <<< "$key"
-             draw_buffer+="\e[$((r + 1));$((c + 1))H${LIVE_CELL}"
+            IFS=',' read -r r c <<<"$key"
+            draw_buffer+="\e[$((r + 1));$((c + 1))H${LIVE_CELL}"
         fi
     done
 
@@ -148,7 +165,6 @@ draw_grid() {
     # Print the entire buffer at once
     printf "%b" "$draw_buffer"
 }
-
 
 # Swap grids: copy 'back' content to 'front'
 swap() {
@@ -161,28 +177,28 @@ swap() {
 
 # --- Main Loop ---
 main() {
-   init
-   init_grid
+    init
+    init_grid
 
-   # Initial draw (draw all live cells from the start using ANSI batching)
-   clear # Clear screen once initially
-   local initial_draw_buffer=""
-   for key in "${!front[@]}"; do
-       IFS=',' read -r r c <<< "$key"
-       initial_draw_buffer+="\e[$((r + 1));$((c + 1))H${LIVE_CELL}"
-   done
-   initial_draw_buffer+="\e[$((rows));$((cols))H" # Move cursor away
-   printf "%b" "$initial_draw_buffer" # Print initial state
+    # Initial draw (draw all live cells from the start using ANSI batching)
+    clear # Clear screen once initially
+    local initial_draw_buffer=""
+    for key in "${!front[@]}"; do
+        IFS=',' read -r r c <<<"$key"
+        initial_draw_buffer+="\e[$((r + 1));$((c + 1))H${LIVE_CELL}"
+    done
+    initial_draw_buffer+="\e[$((rows));$((cols))H" # Move cursor away
+    printf "%b" "$initial_draw_buffer"             # Print initial state
 
-   while true; do
-      update_grid
-      draw_grid
-      swap
+    while true; do
+        update_grid
+        draw_grid
+        swap
 
-      if read -r -N 1 -t "$SLEEP_DURATION" key; then
-         break # Exit loop if key pressed
-      fi
-   done
+        if read -r -N 1 -t "$SLEEP_DURATION" key; then
+            break # Exit loop if key pressed
+        fi
+    done
 }
 
 main
