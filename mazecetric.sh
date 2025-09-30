@@ -67,50 +67,55 @@ init_grid() {
     done
 }
 
-# Calculate the next generation/state of the grid
+# Calculate the next generation using awk for performance (like brain.sh)
 update_grid() {
-    local r c nr nc dr dc neighbors is_alive key
-    declare -A cells_to_check
-
-    # 1. Identify cells needing checks
-    for key in "${!front[@]}"; do
-        IFS=',' read -r r c <<<"$key"
-        cells_to_check["$r,$c"]=1
-        for dr in -1 0 1; do for dc in -1 0 1; do
-            nr=$(((r + dr + rows) % rows))
-            nc=$(((c + dc + cols) % cols))
-            cells_to_check["$nr,$nc"]=1
-        done; done
-    done
-
     back=()
-
-    for key in "${!cells_to_check[@]}"; do
-        IFS=',' read -r r c <<<"$key"
-
-        neighbors=0
-        for dr in -1 0 1; do
-            for dc in -1 0 1; do
-                [[ $dr -eq 0 && $dc -eq 0 ]] && continue # Skip self
-                nr=$(((r + dr + rows) % rows))
-                nc=$(((c + dc + cols) % cols))
-                [[ -v front["$nr,$nc"] ]] && ((neighbors++))
-            done
-        done
-        is_alive=0
-        [[ -v front["$key"] ]] && is_alive=1
-
-        if ((is_alive)); then
-            if ((neighbors >= 1 && neighbors <= 5)); then
-                back["$key"]=1
-            fi
-        else
-            #reproduction:
-            if ((neighbors == 3)); then
-                back["$key"]=1
-            fi
-        fi
-    done
+    
+    # Use awk to efficiently process mazecetric rules
+    while IFS= read -r key; do
+        back["$key"]=1
+    done < <(
+        printf '%s\n' "${!front[@]}" |
+        awk -v R="$rows" -v C="$cols" '
+        BEGIN { FS="," }
+        {
+            # Mark alive cells
+            alive[$0] = 1
+            split($0, rc, ",")
+            r = rc[1]
+            c = rc[2]
+            
+            # Count neighbors for all cells around alive cells
+            for (dr = -1; dr <= 1; dr++) {
+                for (dc = -1; dc <= 1; dc++) {
+                    if (dr == 0 && dc == 0) continue  # Skip the cell itself
+                    nr = (r + dr + R) % R
+                    nc = (c + dc + C) % C
+                    neighbor_pos = nr "," nc
+                    neighbor_count[neighbor_pos]++
+                }
+            }
+        }
+        END {
+            # Apply mazecetric rules:
+            # Survival: 1-5 neighbors
+            # Birth: exactly 3 neighbors
+            for (pos in neighbor_count) {
+                count = neighbor_count[pos]
+                if (pos in alive) {
+                    # Alive cell survives with 1-5 neighbors
+                    if (count >= 1 && count <= 5) {
+                        print pos
+                    }
+                } else {
+                    # Dead cell becomes alive with exactly 3 neighbors
+                    if (count == 3) {
+                        print pos
+                    }
+                }
+            }
+        }'
+    )
 }
 
 # Draw the changes using ANSI escapes and batched output

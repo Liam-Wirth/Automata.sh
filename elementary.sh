@@ -109,29 +109,71 @@ main() {
    echo "$current_line"
 
    while true; do
-      local next_line=""
-      local i l c r l_idx r_idx l_char c_char r_char index next_state_bit
+      current_line=$(echo "$current_line" | awk -v RULE="$RULE" -v LIVE="$LIVE_CELL" -v DEAD="$DEAD_CELL" -v TOROIDAL="$USE_TOROIDAL" -v COLS="$cols" '
+      {
+         line = $0
+         next_line = ""
+         
+         for (i = 1; i <= COLS; i++) {
+            # Get current cell
+            c_char = substr(line, i, 1)
+            if (c_char == LIVE) {
+               c = 1
+            } else {
+               c = 0
+            }
+            
+            # Get left and right neighbors
+            if (TOROIDAL == 1) {
+               l_idx = (i - 2 + COLS) % COLS + 1
+               r_idx = (i % COLS) + 1
+            } else {
+               l_idx = (i == 1) ? 0 : i - 1
+               r_idx = (i == COLS) ? 0 : i + 1
+            }
+            
+            if (l_idx == 0) {
+               l = 0
+            } else {
+               l_char = substr(line, l_idx, 1)
+               if (l_char == LIVE) {
+                  l = 1
+               } else {
+                  l = 0
+               }
+            }
+            
+            if (r_idx == 0) {
+               r = 0
+            } else {
+               r_char = substr(line, r_idx, 1)
+               if (r_char == LIVE) {
+                  r = 1
+               } else {
+                  r = 0
+               }
+            }
+            
+            # Calculate next state using rule - extract bit at position index
+            pattern_idx = l*4 + c*2 + r
+            # Use bit extraction: repeatedly divide a copy of RULE
+            rule_copy = RULE
+            for (j = 0; j < pattern_idx; j++) {
+               rule_copy = int(rule_copy / 2)
+            }
+            next_state_bit = rule_copy % 2
+            
+            if (next_state_bit == 1) {
+               next_line = next_line LIVE
+            } else {
+               next_line = next_line DEAD
+            }
+         }
+         
+         print next_line
+      }')
 
-      for ((i = 0; i < cols; i++)); do
-         c_char="${current_line:$i:1}"; [[ "$c_char" == "$LIVE_CELL" ]] && c=1 || c=0
-
-         if (( USE_TOROIDAL == 1 )); then
-            l_idx=$(( (i - 1 + cols) % cols )); r_idx=$(( (i + 1) % cols ))
-            l_char="${current_line:$l_idx:1}"; r_char="${current_line:$r_idx:1}"
-            [[ "$l_char" == "$LIVE_CELL" ]] && l=1 || l=0
-            [[ "$r_char" == "$LIVE_CELL" ]] && r=1 || r=0
-         else # Fixed boundaries
-            if (( i == 0 )); then l=0; else l_char="${current_line:$((i-1)):1}"; [[ "$l_char" == "$LIVE_CELL" ]] && l=1 || l=0; fi
-            if (( i == cols - 1 )); then r=0; else r_char="${current_line:$((i+1)):1}"; [[ "$r_char" == "$LIVE_CELL" ]] && r=1 || r=0; fi
-         fi
-
-         index=$(( l*4 + c*2 + r*1 ))
-         next_state_bit=$(((RULE >> index) & 1))
-         if ((next_state_bit == 1)); then next_line+="$LIVE_CELL"; else next_line+="$DEAD_CELL"; fi
-      done
-
-      echo "$next_line"
-      current_line="$next_line"
+      echo "$current_line"
 
       ((generation_count++))
 

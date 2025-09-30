@@ -5,7 +5,6 @@ INITIAL_DENSITY=20 # Percentage of initially live cells (approx)
 SLEEP_DURATION=0.001
 
 # --- Terminal Setup & Globals ---
-# Use full terminal size initially
 rows=$(tput lines)
 cols=$(tput cols)
 
@@ -71,72 +70,57 @@ init_grid() {
     done
 }
 
-# Calculate the next generation/state of the grid
 update_grid() {
-    local r c nr nc dr dc neighbors is_alive key
-    declare -A cells_to_check
-
-    # 1. Identify cells needing checks
-    for key in "${!front[@]}"; do
-        IFS=',' read -r r c <<<"$key"
-        cells_to_check["$r,$c"]=1
-        for dr in -1 0 1; do for dc in -1 0 1; do
-            nr=$(((r + dr + rows) % rows))
-            nc=$(((c + dc + cols) % cols))
-            cells_to_check["$nr,$nc"]=1
-        done; done
-    done
-
     back=()
-
-    for key in "${!cells_to_check[@]}"; do
-        IFS=',' read -r r c <<<"$key"
-
-        neighbors=0
-        for dr in -1 0 1; do
-            for dc in -1 0 1; do
-                [[ $dr -eq 0 && $dc -eq 0 ]] && continue # Skip self
-                nr=$(((r + dr + rows) % rows))
-                nc=$(((c + dc + cols) % cols))
-                [[ -v front["$nr,$nc"] ]] && ((neighbors++))
-            done
-        done
-        is_alive=0
-        [[ -v front["$key"] ]] && is_alive=1
-
-        if ((is_alive)); then
-            # Survive
-            if ((neighbors == 2 || neighbors == 3)); then
-                back["$key"]=1
-            fi
-        else
-            # Reproduce
-            if ((neighbors == 3)); then
-                back["$key"]=1
-            fi
-        fi
-    done
-}
-
-# awk TUAH!
-awk_grid() {
-    back=()
+    
+    # Use awk to process Conway's Game of Life rules
     while IFS= read -r key; do
         back["$key"]=1
     done < <(
         printf '%s\n' "${!front[@]}" |
-            awk -v R="$rows" -v C="$cols" '
-            BEGIN { FS="," }
-{
-live[$0]=1
-split($0, rc, ","); r=rc[1]; c=rc[2]
-
-}
-
-'
+        awk -v R="$rows" -v C="$cols" '
+        BEGIN { FS="," }
+        {
+            # Mark alive cells
+            alive[$0] = 1
+            split($0, rc, ",")
+            r = rc[1]
+            c = rc[2]
+            
+            # Count neighbors for all cells around alive cells
+            for (dr = -1; dr <= 1; dr++) {
+                for (dc = -1; dc <= 1; dc++) {
+                    if (dr == 0 && dc == 0) continue  # Skip the cell itself
+                    nr = (r + dr + R) % R
+                    nc = (c + dc + C) % C
+                    neighbor_pos = nr "," nc
+                    neighbor_count[neighbor_pos]++
+                }
+            }
+        }
+        END {
+            # Apply Conway'\''s Game of Life rules:
+            # Birth: exactly 3 neighbors
+            # Survival: 2 or 3 neighbors
+            for (pos in neighbor_count) {
+                count = neighbor_count[pos]
+                if (pos in alive) {
+                    # Alive cell survives with 2 or 3 neighbors
+                    if (count == 2 || count == 3) {
+                        print pos
+                    }
+                } else {
+                    # Dead cell becomes alive with exactly 3 neighbors
+                    if (count == 3) {
+                        print pos
+                    }
+                }
+            }
+        }'
     )
-
 }
+
+
 
 # Draw the changes using ANSI escapes and batched output
 draw_grid() {
@@ -166,7 +150,6 @@ draw_grid() {
     printf "%b" "$draw_buffer"
 }
 
-# Swap grids: copy 'back' content to 'front'
 swap() {
     front=()
     for key in "${!back[@]}"; do
@@ -175,7 +158,6 @@ swap() {
 
 }
 
-# --- Main Loop ---
 main() {
     init
     init_grid
